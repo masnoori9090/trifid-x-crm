@@ -5,24 +5,36 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
     LayoutDashboard,
+    Inbox,
+    Trophy,
     Users,
-    Target,
+    List,
+    Workflow,
     MessageSquare,
-    CheckSquare,
+    Activity,
     BarChart3,
     Settings,
-    Zap
+    HelpCircle,
+    Zap,
+    ChevronLeft,
+    Globe
 } from 'lucide-react'
 
 const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Getting Started', href: '/getting-started', icon: Globe },
+    { name: 'Inbox', href: '/tasks', icon: Inbox },
+    { name: 'Opportunities', href: '/deals', icon: Trophy, active: true }, // Highlighted in image
+    { name: 'Leads', href: '/leads', icon: List },
     { name: 'Contacts', href: '/contacts', icon: Users },
-    { name: 'Deals', href: '/deals', icon: Target },
-    { name: 'Activities', href: '/activities', icon: MessageSquare },
-    { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+    { name: 'Workflows', href: '/workflows', icon: Workflow },
+    { name: 'Conversations', href: '/conversations', icon: MessageSquare },
+    { name: 'Activities', href: '/activities', icon: Activity },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
+]
+
+const bottomNavigation = [
+    { name: 'Support & FAQs', href: '/support', icon: HelpCircle },
     { name: 'Integrations', href: '/integrations', icon: Zap },
-    { name: 'Admin', href: '/admin', icon: Shield },
     { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
@@ -30,59 +42,80 @@ export function Sidebar() {
     const pathname = usePathname()
 
     return (
-        <div className="flex h-full w-64 flex-col bg-[#1e293b] text-white border-r border-slate-700">
-            <div className="flex h-16 items-center px-6 border-b border-slate-700">
+        <div className="flex h-full w-60 flex-col bg-[#151920] text-[#9ea5b0] border-r border-[#2b313b] text-sm">
+            {/* User Profile Dropdown */}
+            <div className="h-14 flex items-center px-4 border-b border-[#2b313b] hover:bg-[#1e232d] cursor-pointer transition-colors">
                 <div className="flex items-center gap-3">
-                    <div className="bg-blue-600 text-white p-1.5 rounded-md">
-                        <svg
-                            className="w-6 h-6"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M13 10V3L4 14h7v7l9-11h-7z"
-                            />
-                        </svg>
+                    <div className="h-8 w-8 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-xs">
+                        MP
                     </div>
-                    <span className="text-xl font-bold tracking-tight">Trifid X</span>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate text-sm">Mohammad PayPal</p>
+                        <p className="text-xs text-muted-foreground truncate">tilt media</p>
+                    </div>
                 </div>
             </div>
 
-            <nav className="flex-1 space-y-1 px-3 py-4">
-                {navigation.map((item) => {
-                    const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
-                    return (
-                        <Link
-                            key={item.name}
-                            href={item.href}
-                            className={cn(
-                                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-all',
-                                isActive
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                            )}
-                        >
-                            <item.icon className={cn("h-5 w-5", isActive ? "text-white" : "text-slate-400 group-hover:text-white")} />
-                            {item.name}
-                        </Link>
-                    )
-                })}
+            {/* Main Navigation */}
+            <nav className="flex-1 overflow-y-auto py-4">
+                <div className="space-y-0.5 px-2">
+                    {navigation.map((item) => {
+                        const isActive = pathname === item.href || (item.name === 'Opportunities' && pathname === '/deals')
+                        return (
+                            <div key={item.name}>
+                                <Link
+                                    href={item.href}
+                                    className={cn(
+                                        'flex items-center gap-3 px-3 py-2 rounded-md transition-colors group',
+                                        isActive
+                                            ? 'bg-[#2b313b] text-white'
+                                            : 'hover:bg-[#1e232d] hover:text-white'
+                                    )}
+                                >
+                                    <item.icon className={cn("h-4 w-4", isActive ? "text-white" : "text-[#9ea5b0] group-hover:text-white")} />
+                                    <span className="font-medium">{item.name}</span>
+                                </Link>
+                                {/* Sub-menu for Opportunities (as seen in image) */}
+                                {item.name === 'Opportunities' && isActive && (
+                                    <div className="ml-9 mt-1 space-y-1">
+                                        <Link href="/deals" className="block text-white font-medium py-1">Pipeline</Link>
+                                        <Link href="/deals/list" className="block text-[#9ea5b0] hover:text-white py-1">List</Link>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+
+                {/* Smart Views Section */}
+                <div className="mt-8 px-5">
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-[#5f6774] mb-3">
+                        <span>Smart Views</span>
+                        <List className="h-3 w-3 cursor-pointer hover:text-white" />
+                    </div>
+                    <p className="text-xs text-[#5f6774] leading-relaxed">
+                        Smart Views are saved searches that dynamically return matching Leads or Contacts based on your filter criteria.
+                    </p>
+                    <Link href="#" className="text-xs text-[#5f6774] underline mt-2 block hover:text-white">Learn more</Link>
+                </div>
             </nav>
 
-            <div className="p-4 border-t border-slate-700">
-                <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-slate-800/50">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold">
-                        ME
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">My Account</p>
-                        <p className="text-xs text-slate-400 truncate">Pro Plan</p>
-                    </div>
-                </div>
+            {/* Bottom Navigation */}
+            <div className="p-2 border-t border-[#2b313b] space-y-0.5">
+                {bottomNavigation.map((item) => (
+                    <Link
+                        key={item.name}
+                        href={item.href}
+                        className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#1e232d] hover:text-white transition-colors"
+                    >
+                        <item.icon className="h-4 w-4" />
+                        <span className="font-medium">{item.name}</span>
+                    </Link>
+                ))}
+                <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#1e232d] hover:text-white transition-colors text-[#9ea5b0]">
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="font-medium">Collapse</span>
+                </button>
             </div>
         </div>
     )
