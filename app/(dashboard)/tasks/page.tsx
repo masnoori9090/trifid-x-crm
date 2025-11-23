@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,47 +11,147 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Calendar, User, AlertCircle } from 'lucide-react'
+import { Plus, Calendar, User, AlertCircle, CheckCircle2, Clock, Phone, Mail, ArrowRight, Loader2 } from 'lucide-react'
+import { formatRelativeDate } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
+
+interface Task {
+    id: string
+    title: string
+    description: string
+    dueDate: string
+    priority: string
+    status: string
+    contact?: { firstName: string; lastName: string; company: string }
+    deal?: { title: string }
+}
 
 export default function TasksPage() {
-    const [activeTab, setActiveTab] = useState('all')
+    const [tasks, setTasks] = useState<Task[]>([])
+    const [loading, setLoading] = useState(true)
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const router = useRouter()
 
-    const tasks = [
-        { id: 1, title: 'Follow up with Acme Corp', description: 'Send proposal follow-up email', dueDate: 'Today, 2:00 PM', priority: 'high', status: 'TODO', contact: 'John Smith', assignedTo: 'You' },
-        { id: 2, title: 'Prepare demo for Tech Solutions', description: 'Create custom demo presentation', dueDate: 'Today, 4:00 PM', priority: 'high', status: 'IN_PROGRESS', contact: 'Sarah Johnson', assignedTo: 'You' },
-        { id: 3, title: 'Contract review', description: 'Review and finalize contract terms', dueDate: 'Tomorrow, 10:00 AM', priority: 'medium', status: 'TODO', contact: 'Mike Brown', assignedTo: 'You' },
-        { id: 4, title: 'Schedule meeting with Global Inc', description: 'Set up discovery call', dueDate: 'Tomorrow, 3:00 PM', priority: 'medium', status: 'TODO', contact: 'Mike Brown', assignedTo: 'You' },
-        { id: 5, title: 'Send pricing to Startup XYZ', description: 'Prepare and send custom pricing', dueDate: 'Dec 5, 2024', priority: 'low', status: 'TODO', contact: 'Emily Davis', assignedTo: 'You' },
-        { id: 6, title: 'Update CRM records', description: 'Add notes from last week\'s calls', dueDate: 'Dec 8, 2024', priority: 'low', status: 'DONE', contact: null, assignedTo: 'You' },
-    ]
+    // Form state
+    const [formData, setFormData] = useState({
+        title: '',
+        description: '',
+        priority: 'MEDIUM',
+        dueDate: '',
+        contactId: ''
+    })
+
+    const fetchTasks = async () => {
+        try {
+            const response = await fetch('/api/v1/tasks')
+            if (response.ok) {
+                const data = await response.json()
+                setTasks(data)
+                if (data.length > 0 && !selectedTaskId) {
+                    setSelectedTaskId(data[0].id)
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch tasks:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchTasks()
+    }, [])
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { id, value } = e.target
+        setFormData(prev => ({ ...prev, [id]: value }))
+    }
+
+    const handleSelectChange = (value: string) => {
+        setFormData(prev => ({ ...prev, priority: value }))
+    }
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setIsSubmitting(true)
+
+        try {
+            const response = await fetch('/api/v1/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+
+            if (response.ok) {
+                setIsDialogOpen(false)
+                setFormData({
+                    title: '',
+                    description: '',
+                    priority: 'MEDIUM',
+                    dueDate: '',
+                    contactId: ''
+                })
+                fetchTasks()
+            }
+        } catch (error) {
+            console.error('Error creating task:', error)
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    const toggleTaskStatus = async (taskId: string, currentStatus: string) => {
+        const newStatus = currentStatus === 'DONE' ? 'TODO' : 'DONE'
+
+        // Optimistic update
+        setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
+
+        try {
+            await fetch('/api/v1/tasks', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: taskId, status: newStatus })
+            })
+        } catch (error) {
+            console.error('Failed to update task:', error)
+            fetchTasks() // Revert on error
+        }
+    }
+
+    const selectedTask = tasks.find(t => t.id === selectedTaskId)
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
-            case 'high': return 'destructive'
-            case 'medium': return 'warning'
-            case 'low': return 'secondary'
+            case 'HIGH': return 'destructive'
+            case 'MEDIUM': return 'warning'
+            case 'LOW': return 'secondary'
             default: return 'default'
         }
     }
 
-    const filteredTasks = activeTab === 'all'
-        ? tasks
-        : activeTab === 'my-tasks'
-            ? tasks.filter(t => t.assignedTo === 'You')
-            : activeTab === 'overdue'
-                ? tasks.filter(t => t.dueDate.includes('Today') && t.status !== 'DONE')
-                : tasks.filter(t => t.status === activeTab.toUpperCase())
+    if (loading) {
+        return <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+    }
+
+    const todoTasks = tasks.filter(t => t.status !== 'DONE')
+    const doneTasks = tasks.filter(t => t.status === 'DONE')
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
+        <div className="h-[calc(100vh-2rem)] flex flex-col animate-fade-in">
+            <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold">Tasks</h1>
-                    <p className="text-muted-foreground mt-1">Manage your to-dos and reminders</p>
+                    <h1 className="text-3xl font-bold">Inbox</h1>
+                    <p className="text-muted-foreground mt-1">
+                        You have <span className="text-primary font-bold">{todoTasks.length}</span> tasks to complete.
+                    </p>
                 </div>
-                <Dialog>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button className="gradient-primary">
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                             <Plus className="mr-2 h-4 w-4" />
                             Add Task
                         </Button>
@@ -60,121 +160,203 @@ export default function TasksPage() {
                         <DialogHeader>
                             <DialogTitle>Create New Task</DialogTitle>
                         </DialogHeader>
-                        <form className="space-y-4 mt-4">
+                        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                             <div className="space-y-2">
-                                <Label>Title</Label>
-                                <Input placeholder="Task title" />
+                                <Label htmlFor="title">Title</Label>
+                                <Input id="title" value={formData.title} onChange={handleInputChange} placeholder="Follow up with..." required />
                             </div>
                             <div className="space-y-2">
-                                <Label>Description</Label>
-                                <Textarea placeholder="Task description..." rows={3} />
+                                <Label htmlFor="description">Description</Label>
+                                <Textarea id="description" value={formData.description} onChange={handleInputChange} placeholder="Task details..." rows={3} />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Priority</Label>
-                                    <Select>
+                                    <Label htmlFor="priority">Priority</Label>
+                                    <Select value={formData.priority} onValueChange={handleSelectChange}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select priority" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="low">Low</SelectItem>
-                                            <SelectItem value="medium">Medium</SelectItem>
-                                            <SelectItem value="high">High</SelectItem>
+                                            <SelectItem value="LOW">Low</SelectItem>
+                                            <SelectItem value="MEDIUM">Medium</SelectItem>
+                                            <SelectItem value="HIGH">High</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Due Date</Label>
-                                    <Input type="datetime-local" />
+                                    <Label htmlFor="dueDate">Due Date</Label>
+                                    <Input id="dueDate" type="datetime-local" value={formData.dueDate} onChange={handleInputChange} />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Related Contact</Label>
-                                <Select>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select contact (optional)" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">John Smith - Acme Corp</SelectItem>
-                                        <SelectItem value="2">Sarah Johnson - Tech Solutions</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <Button type="submit" className="w-full gradient-primary">Create Task</Button>
+                            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
+                                {isSubmitting ? 'Creating...' : 'Create Task'}
+                            </Button>
                         </form>
                     </DialogContent>
                 </Dialog>
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
-                    <TabsTrigger value="all">All Tasks</TabsTrigger>
-                    <TabsTrigger value="my-tasks">My Tasks</TabsTrigger>
-                    <TabsTrigger value="overdue">Overdue</TabsTrigger>
-                    <TabsTrigger value="done">Completed</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value={activeTab} className="mt-6">
-                    <div className="space-y-3">
-                        {filteredTasks.map((task) => (
-                            <Card key={task.id} className="hover:shadow-md transition-shadow">
-                                <CardContent className="p-4">
-                                    <div className="flex items-start gap-4">
-                                        <Checkbox
-                                            checked={task.status === 'DONE'}
-                                            className="mt-1"
-                                        />
-
-                                        <div className="flex-1">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <h3 className={`font-semibold ${task.status === 'DONE' ? 'line-through text-muted-foreground' : ''}`}>
-                                                            {task.title}
-                                                        </h3>
-                                                        <Badge variant={getPriorityColor(task.priority) as any}>
-                                                            {task.priority}
-                                                        </Badge>
-                                                        {task.status === 'IN_PROGRESS' && (
-                                                            <Badge variant="default">In Progress</Badge>
-                                                        )}
-                                                    </div>
-                                                    {task.description && (
-                                                        <p className="text-sm text-muted-foreground">{task.description}</p>
+            <div className="flex-1 flex gap-6 overflow-hidden">
+                {/* Task List (Left Pane) */}
+                <div className="w-1/3 flex flex-col bg-white rounded-xl border shadow-sm overflow-hidden">
+                    <div className="p-4 border-b bg-slate-50">
+                        <div className="relative">
+                            <Input placeholder="Search tasks..." className="pl-9 bg-white" />
+                            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                        {todoTasks.length === 0 && doneTasks.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">
+                                No tasks found.
+                            </div>
+                        ) : (
+                            <div className="divide-y">
+                                {todoTasks.map((task) => (
+                                    <div
+                                        key={task.id}
+                                        onClick={() => setSelectedTaskId(task.id)}
+                                        className={`p-4 cursor-pointer hover:bg-slate-50 transition-colors ${selectedTaskId === task.id ? 'bg-blue-50 border-l-4 border-blue-600' : 'border-l-4 border-transparent'}`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <Checkbox
+                                                checked={false}
+                                                onCheckedChange={() => toggleTaskStatus(task.id, task.status)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="mt-1"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-medium text-sm truncate">{task.title}</h3>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <Badge variant={getPriorityColor(task.priority) as any} className="text-[10px] px-1 py-0 h-5">
+                                                        {task.priority}
+                                                    </Badge>
+                                                    {task.dueDate && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {new Date(task.dueDate).toLocaleDateString()}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {doneTasks.length > 0 && (
+                                    <div className="p-4 bg-slate-50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        Completed
+                                    </div>
+                                )}
+                                {doneTasks.map((task) => (
+                                    <div
+                                        key={task.id}
+                                        onClick={() => setSelectedTaskId(task.id)}
+                                        className={`p-4 cursor-pointer hover:bg-slate-50 transition-colors opacity-60 ${selectedTaskId === task.id ? 'bg-slate-100' : ''}`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <Checkbox
+                                                checked={true}
+                                                onCheckedChange={() => toggleTaskStatus(task.id, task.status)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="mt-1"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-medium text-sm truncate line-through">{task.title}</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
 
-                                            <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                                                {task.dueDate && (
+                {/* Task Details (Right Pane) */}
+                <div className="flex-1 bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col">
+                    {selectedTask ? (
+                        <>
+                            <div className="p-6 border-b flex justify-between items-start">
+                                <div>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Badge variant={getPriorityColor(selectedTask.priority) as any}>
+                                            {selectedTask.priority} Priority
+                                        </Badge>
+                                        {selectedTask.status === 'DONE' && (
+                                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                                Completed
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <h2 className="text-2xl font-bold">{selectedTask.title}</h2>
+                                </div>
+                                <Button
+                                    variant={selectedTask.status === 'DONE' ? 'outline' : 'default'}
+                                    className={selectedTask.status === 'DONE' ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}
+                                    onClick={() => toggleTaskStatus(selectedTask.id, selectedTask.status)}
+                                >
+                                    {selectedTask.status === 'DONE' ? 'Mark as Undone' : 'Mark Complete'}
+                                </Button>
+                            </div>
+
+                            <div className="flex-1 p-6 overflow-y-auto">
+                                <div className="grid grid-cols-3 gap-8">
+                                    <div className="col-span-2 space-y-6">
+                                        <div>
+                                            <h3 className="text-sm font-medium text-muted-foreground mb-2">Description</h3>
+                                            <p className="text-sm leading-relaxed">
+                                                {selectedTask.description || 'No description provided.'}
+                                            </p>
+                                        </div>
+
+                                        {/* Quick Actions */}
+                                        <div className="p-4 bg-slate-50 rounded-lg border">
+                                            <h3 className="text-sm font-medium mb-3">Quick Actions</h3>
+                                            <div className="flex gap-3">
+                                                <Button variant="outline" className="flex-1 bg-white">
+                                                    <Phone className="mr-2 h-4 w-4" />
+                                                    Call Contact
+                                                </Button>
+                                                <Button variant="outline" className="flex-1 bg-white">
+                                                    <Mail className="mr-2 h-4 w-4" />
+                                                    Email Contact
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="p-4 rounded-lg border bg-slate-50">
+                                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                                Details
+                                            </h3>
+                                            <div className="space-y-3 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                                    <span>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : 'No due date'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <User className="h-4 w-4 text-muted-foreground" />
+                                                    <span>{selectedTask.contact ? `${selectedTask.contact.firstName} ${selectedTask.contact.lastName}` : 'No contact'}</span>
+                                                </div>
+                                                {selectedTask.contact?.company && (
                                                     <div className="flex items-center gap-2">
-                                                        <Calendar className="h-4 w-4" />
-                                                        <span className={task.dueDate.includes('Today') && task.status !== 'DONE' ? 'text-orange-500 font-medium' : ''}>
-                                                            {task.dueDate}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {task.contact && (
-                                                    <div className="flex items-center gap-2">
-                                                        <User className="h-4 w-4" />
-                                                        <span>{task.contact}</span>
-                                                    </div>
-                                                )}
-                                                {task.dueDate.includes('Today') && task.status !== 'DONE' && (
-                                                    <div className="flex items-center gap-1 text-orange-500">
-                                                        <AlertCircle className="h-4 w-4" />
-                                                        <span className="font-medium">Due today</span>
+                                                        <span className="h-4 w-4 flex items-center justify-center text-xs font-bold text-muted-foreground">C</span>
+                                                        <span>{selectedTask.contact.company}</span>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                </TabsContent>
-            </Tabs>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+                            <CheckCircle2 className="h-12 w-12 mb-4 opacity-20" />
+                            <p>Select a task to view details</p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
